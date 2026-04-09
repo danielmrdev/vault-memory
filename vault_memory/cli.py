@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""
+vm — vault-memory CLI
+
+Commands:
+  vm index  <path> --collection <name> [--db <path>]
+  vm search <query> [--collection <name>] [--mode hybrid|vector|bm25] [--limit N] [--db <path>]
+  vm stats  [--db <path>]
+  vm prune  <path> [--db <path>]
+
+Environment:
+  VAULT_MEMORY_DB     path to vectors.db (default: ~/hache/data/vectors.db)
+  GEMINI_API_KEY      Gemini API key for embeddings
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+from . import VaultMemory
+
+DEFAULT_DB = os.path.expanduser(
+    os.environ.get("VAULT_MEMORY_DB", "~/hache/data/vectors.db")
+)
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+
+def get_vm(db_path: str) -> VaultMemory:
+    return VaultMemory(db_path, gemini_api_key=GEMINI_KEY)
+
+
+def cmd_index(args):
+    vm = get_vm(args.db)
+    path = os.path.expanduser(args.path)
+    col = args.collection
+
+    if os.path.isfile(path):
+        result = vm.index_file(path, collection=col)
+        print(f"File:     {result.file}")
+        print(f"Chunks:   {result.chunks_added}")
+        print(f"Embedded: {result.embedded}")
+        print(f"Skipped:  {result.skipped}")
+    elif os.path.isdir(path):
+        summary = vm.index_directory(path, collection=col)
+        print(f"Index summary for: {path}  [{col}]")
+        print(f"  Files processed : {summary.files_processed}")
+        print(f"  Chunks added    : {summary.chunks_added}")
+        print(f"  Embedded        : {summary.embedded}")
+        print(f"  Skipped (mtime) : {summary.skipped}")
+        print(f"  Errors          : {len(summary.errors)}")
+        if summary.errors:
+            for e in summary.errors[:5]:
+                print(f"    {e['file']}: {e['error']}")
+        print(f"  Elapsed         : {summary.elapsed_ms}ms")
+    else:
+        print(f"Error: path not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+    vm.close()
+
+
+def cmd_search(args):
+    vm = get_vm(args.db)
+    results = vm.search(
+        args.query,
+        collection=args.collection or None,
+        limit=args.limit,
+    )
+
+    if args.json:
+        print(json.dumps([
+            {
+                "file": r.file_path,
+                "heading": r.heading,
+                "score": round(r.score, 4),
+                "vector_score": round(r.vector_score, 4) if r.vector_score else None,
+                "bm25_score": round(r.bm25_score, 4) if r.bm25_score else None,
+                "content": r.content[:500],
+            }
+            for r in results
+        ], ensure_ascii=False, indent=2))
+    else:
+        if not results:
+            print("No results.")
+        for i, r in enumerate(results, 1):
+            title = r.heading or Path(r.file_path).name
+            print(f"\n{'─'*60}")
+            print(f"[{i}] {title}  (score: {r.score:.4f})")
+            print(f"    {r.file_path}")
+            print()
+            snippet = r.content[:400]
+            for line in snippet.splitlines():
+                print(f"    {line}")
+            if len(r.content) > 400:
+                print("    ...")
+
+    vm.close()
+
+
+def cmd_stats(args):
+    vm = get_vm(args.db)
+    stats = vm.get_stats()
+
+    print(f"Vector Memory Stats — {stats.db_path}\n")
+    print(f"{'Collection':<28} {'Chunks':>7} {'Embedded':>9} {'Files':>7}")
+    print("─" * 56)
+    for c in stats.collections:
+        print(f"{c['id']:<28} {c['chunk_count']:>7} {c['embedded_count']:>9} {c['file_count']:>7}")
+    print("─" * 56)
+    print(f"{'TOTAL':<28} {stats.total_chunks:>7} {stats.total_embedded:>9}")
+
+    vm.close()
+
+
+def cmd_prune(args):
+    vm = get_vm(args.db)
+    pruned = vm.prune_orphans(os.path.expanduser(args.path))
+    print(f"Pruned {len(pruned)} orphan(s).")
+    for p in pruned:
+        print(f"  {p}")
+    vm.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="vm", description="vault-memory CLI")
+    parser.add_argument("--db", default=DEFAULT_DB, help="Path to vectors.db")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    # index
+    p_index = sub.add_parser("index", help="Index a file or directory")
+    p_index.add_argument("path", help="File or directory to index")
+    p_index.add_argument("--collection", "-c", required=True, help="Collection name")
+
+    # search
+    p_search = sub.add_parser("search", help="Search indexed content")
+    p_search.add_argument("query", help="Search query")
+    p_search.add_argument("--collection", "-c", help="Filter by collection")
+    p_search.add_argument("--limit", "-n", type=int, default=5)
+    p_search.add_argument("--json", action="store_true", help="JSON output")
+
+    # stats
+    sub.add_parser("stats", help="Show index statistics")
+
+    # prune
+    p_prune = sub.add_parser("prune", help="Remove orphaned entries")
+    p_prune.add_argument("path", help="Directory to prune")
+
+    args = parser.parse_args()
+
+    if args.cmd == "index":
+        cmd_index(args)
+    elif args.cmd == "search":
+        cmd_search(args)
+    elif args.cmd == "stats":
+        cmd_stats(args)
+    elif args.cmd == "prune":
+        cmd_prune(args)
+
+
+if __name__ == "__main__":
+    main()
