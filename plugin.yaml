@@ -1,0 +1,7 @@
+name: vault-memory
+version: 0.1.0
+description: "Semantic search over markdown collections — BM25 + vector hybrid, SQLite, Gemini embeddings (free tier). Works offline with BM25-only mode."
+pip_dependencies: []
+hooks:
+  - prefetch
+  - queue_prefetch
