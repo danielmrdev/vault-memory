@@ -5,7 +5,7 @@ Collections are just (name, path_to_index) pairs — no hardcoded obsidian/nous.
 The DB is shared across all collections.
 
 Usage:
-    vm = VaultMemory("/path/to/vectors.db", gemini_api_key="...")
+    vm = VaultMemory("/path/to/vectors.db", nvidia_api_key="...")
     vm.index_file("/path/to/note.md", collection="obsidian")
     vm.index_directory("/path/to/vault", collection="obsidian")
     results = vm.search("my query", collection="obsidian")
@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from .chunker import chunk_markdown
-from .embedder import GeminiEmbedder
+from .embedder import NvidiaEmbedder
 from .store import SearchResult, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -51,20 +51,21 @@ class IndexSummary:
 class VaultMemory:
     """Facade — lazy-initialised store + embedder, safe on the hot search path."""
 
-    def __init__(self, db_path: str, gemini_api_key: str = ""):
+    def __init__(self, db_path: str, nvidia_api_key: str = "", gemini_api_key: str = ""):
         self._db_path = db_path
-        self._api_key = gemini_api_key
+        # gemini_api_key kept for backwards compat — ignored
+        self._api_key = nvidia_api_key
         self._store: Optional[VectorStore] = None
-        self._embedder: Optional[GeminiEmbedder] = None
+        self._embedder: Optional[NvidiaEmbedder] = None
 
     def _store_(self) -> VectorStore:
         if self._store is None:
             self._store = VectorStore(self._db_path)
         return self._store
 
-    def _embedder_(self) -> GeminiEmbedder:
+    def _embedder_(self) -> NvidiaEmbedder:
         if self._embedder is None:
-            self._embedder = GeminiEmbedder(self._api_key)
+            self._embedder = NvidiaEmbedder(self._api_key)
         return self._embedder
 
     def close(self):
@@ -86,7 +87,7 @@ class VaultMemory:
             )
 
             if use_vector:
-                vecs = embedder.embed_batch([query])
+                vecs = embedder.embed_batch([query], input_type="query")
                 if vecs:
                     logger.debug(f'[VaultMemory] search mode=hybrid query="{query[:50]}"')
                     return store.search_hybrid(query, vecs[0], collection=collection, limit=limit)
@@ -134,7 +135,7 @@ class VaultMemory:
           2. Check ingest_log → skip if unchanged (unless unembedded chunks exist)
           3. Read + chunk
           4. Upsert chunks
-          5. Embed unembedded chunks (if Gemini available)
+          5. Embed unembedded chunks (if NVIDIA available)
         """
         store = self._store_()
         store.ensure_collection(collection)

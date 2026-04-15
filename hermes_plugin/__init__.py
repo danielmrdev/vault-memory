@@ -48,7 +48,7 @@ VAULT_SEARCH_SCHEMA = {
         "Search the semantic knowledge base — covers the Obsidian vault "
         "(notes, projects, areas, resources) and Hermes memory files "
         "(sessions, skills, memories). "
-        "Uses hybrid BM25 + vector search (Gemini embeddings). "
+        "Uses hybrid BM25 + vector search (NVIDIA embeddings). "
         "Use this when you need context about Daniel's projects, past decisions, "
         "notes, or anything that might be in the knowledge base."
     ),
@@ -64,7 +64,7 @@ VAULT_SEARCH_SCHEMA = {
                 "description": (
                     "Optional collection to search. "
                     "Leave empty to search all. "
-                    "Known collections: obsidian, hermes-memory."
+                    "Known collections: obsidian, hermes-exported."
                 ),
             },
             "limit": {
@@ -98,11 +98,11 @@ class VaultMemoryProvider(MemoryProvider):
 
     def is_available(self) -> bool:
         db = self._resolve_db_path()
-        return bool(db)  # available even without Gemini (BM25-only mode)
+        return bool(db)  # available even without NVIDIA key (BM25-only mode)
 
     def initialize(self, session_id: str, **kwargs) -> None:
         self._db_path = self._resolve_db_path()
-        self._api_key = os.environ.get("GEMINI_API_KEY", "")
+        self._api_key = os.environ.get("NVIDIA_API_KEY", "")
         if not self._db_path:
             logger.warning("[VaultMemory] VAULT_MEMORY_DB not set and default not found")
             return
@@ -189,12 +189,12 @@ class VaultMemoryProvider(MemoryProvider):
                 "secret": False,
             },
             {
-                "key": "gemini_api_key",
-                "description": "Gemini API key for vector embeddings (free tier OK). Leave empty for BM25-only.",
+                "key": "nvidia_api_key",
+                "description": "NVIDIA NIM API key for vector embeddings (free tier, model: nv-embedqa-e5-v5). Leave empty for BM25-only.",
                 "required": False,
-                "env_var": "GEMINI_API_KEY",
+                "env_var": "NVIDIA_API_KEY",
                 "secret": True,
-                "url": "https://aistudio.google.com/app/apikey",
+                "url": "https://build.nvidia.com/",
             },
         ]
 
@@ -216,7 +216,7 @@ class VaultMemoryProvider(MemoryProvider):
                 if str(plugin_dir) not in sys.path:
                     sys.path.insert(0, str(plugin_dir))
                 from vault_memory import VaultMemory
-                self._vm = VaultMemory(self._db_path, gemini_api_key=self._api_key)
+                self._vm = VaultMemory(self._db_path, nvidia_api_key=self._api_key)
             except ImportError as e:
                 logger.error(f"[VaultMemory] Failed to import vault_memory: {e}")
         return self._vm

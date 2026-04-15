@@ -1,6 +1,6 @@
 name: vault-memory
-version: 0.1.0
-description: "Semantic search over markdown collections — BM25 + vector hybrid, SQLite, Gemini embeddings (free tier). Works offline with BM25-only mode."
+version: 0.2.0
+description: "Semantic search over markdown collections — BM25 + NVIDIA vector hybrid (nv-embedqa-e5-v5), SQLite. Collections: obsidian vault + hermes-exported (skills, memories, agent configs). Works offline with BM25-only mode."
 pip_dependencies: []
 hooks:
   - prefetch

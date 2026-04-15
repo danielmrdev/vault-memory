@@ -214,6 +214,27 @@ class VectorStore:
         ).fetchall()
         return [{"id": r["id"], "content": r["content"]} for r in rows]
 
+    def get_pending_embeddings(self, collection_id: Optional[str] = None,
+                              limit: int = 100) -> list[dict]:
+        """Return unembedded chunks for a collection (for daily embedding jobs)."""
+        if collection_id:
+            rows = self._con.execute(
+                "SELECT id, content FROM chunks "
+                "WHERE collection_id=? AND embedding IS NULL "
+                "ORDER BY file_path, chunk_index "
+                "LIMIT ?",
+                (collection_id, limit),
+            ).fetchall()
+        else:
+            rows = self._con.execute(
+                "SELECT id, content FROM chunks "
+                "WHERE embedding IS NULL "
+                "ORDER BY collection_id, file_path, chunk_index "
+                "LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [{"id": r["id"], "content": r["content"]} for r in rows]
+
     def update_embeddings(self, items: list[dict]):
         """Write embeddings (list[float]) and precomputed L2 norms to chunks.
 

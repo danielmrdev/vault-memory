@@ -12,9 +12,9 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-TARGET_CHUNK_SIZE = 1500   # chars
-OVERLAP_SIZE = 200         # chars — tail of previous chunk prepended to next
-MIN_CHUNK_SIZE = 10        # chars — skip empty/junk fragments
+TARGET_CHUNK_SIZE = 400    # chars — conservador para evitar token limit de NVIDIA (512)
+OVERLAP_SIZE = 50          # chars — pequeño overlap para continuidad semántica
+MIN_CHUNK_SIZE = 10        # chars
 
 
 @dataclass

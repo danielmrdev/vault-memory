@@ -10,7 +10,7 @@ Commands:
 
 Environment:
   VAULT_MEMORY_DB     path to vectors.db (default: ~/hache/data/vectors.db)
-  GEMINI_API_KEY      Gemini API key for embeddings
+  NVIDIA_API_KEY      NVIDIA NIM API key for embeddings (model: nv-embedqa-e5-v5)
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ from . import VaultMemory
 DEFAULT_DB = os.path.expanduser(
     os.environ.get("VAULT_MEMORY_DB", "~/hache/data/vectors.db")
 )
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+NVIDIA_KEY = os.environ.get("NVIDIA_API_KEY", "")
 
 
 def get_vm(db_path: str) -> VaultMemory:
-    return VaultMemory(db_path, gemini_api_key=GEMINI_KEY)
+    return VaultMemory(db_path, nvidia_api_key=NVIDIA_KEY)
 
 
 def cmd_index(args):
